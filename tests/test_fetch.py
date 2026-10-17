@@ -36,13 +36,13 @@ def test_closed_substation_way_becomes_polygon():
 def test_tags_and_ids_become_columns():
     gdf = fetch.overpass_to_gdf([
         {"type": "node", "id": 7, "lat": 29.7, "lon": -95.4,
-         "tags": {"power": "tower", "operator": "CenterPoint Energy"}},
+         "tags": {"power": "tower", "operator": "Example Utility"}},
     ])
     row = gdf.iloc[0]
     assert row["osm_id"] == 7
     assert row["osm_type"] == "node"
     assert row["power"] == "tower"
-    assert row["operator"] == "CenterPoint Energy"
+    assert row["operator"] == "Example Utility"
 
 
 def page(n, start=0):
