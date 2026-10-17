@@ -1,7 +1,7 @@
 flowchart TD
     subgraph S["1. Public sources"]
-        OSM["OpenStreetMap<br/>poles, towers, lines, substations,<br/>hospitals, fire and police stations,<br/>water plants"]
-        HIFLD["HIFLD<br/>federal transmission lines"]
+        OSM["OpenStreetMap<br/>poles, towers, lines, substations"]
+        HIFLD["HIFLD<br/>transmission lines, reference layer"]
         FEMA["FEMA<br/>flood hazard zones"]
     end
 
@@ -13,18 +13,18 @@ flowchart TD
         PROJ["reproject to EPSG:2278<br/>NAD83 Texas South Central, US feet"]
     end
 
-    subgraph DB["4. PostGIS in Docker"]
-        T["source tables<br/>osm_poles, osm_towers, osm_lines,<br/>hifld_lines, flood_zones, critical_sites"]
-        C["5 checks in SQL<br/>duplicates, orphans, line gaps,<br/>missing info, OSM vs HIFLD offset"]
+    subgraph DB["4. QA/QC in PostGIS (Docker)"]
+        T["source tables"]
+        LOC["location check<br/>OSM vs HIFLD offset"]
+        CON["connectivity checks<br/>supports not on a line,<br/>lines not connected to the network"]
+        ATT["attribute checks<br/>missing or inconsistent<br/>voltage and operator"]
         E["errors table"]
-        R["ranked_errors<br/>flood + critical site +<br/>voltage + error size"]
+        R["ranked errors<br/>flood zones first"]
     end
 
     subgraph O["5. Outputs"]
-        CSV["ranked error report CSV"]
-        QGIS["QGIS project<br/>reads PostGIS directly"]
-        PNG["map image"]
-        HC["hand check of 30 errors<br/>on aerial imagery"]
+        CSV["error report CSV"]
+        MAP["visual QA map in QGIS"]
         MD["README<br/>real numbers from the run"]
     end
 
@@ -32,11 +32,9 @@ flowchart TD
     HIFLD --> RAW
     FEMA --> RAW
     RAW --> PROJ --> T
-    T --> C --> E --> R
-    R --> CSV
-    R --> QGIS
-    QGIS --> PNG
-    QGIS --> HC
-    CSV --> MD
-    HC --> MD
-    PNG --> MD
+    T --> LOC --> E
+    T --> CON --> E
+    T --> ATT --> E
+    E --> R
+    R --> CSV --> MD
+    R --> MAP --> MD
