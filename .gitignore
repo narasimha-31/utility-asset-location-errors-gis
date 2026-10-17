@@ -1,1 +1,12 @@
-.md
+lessons/
+
+data/
+output/*.csv
+
+.env
+
+__pycache__/
+.venv/
+
+*.qgz~
+*.qgs~
