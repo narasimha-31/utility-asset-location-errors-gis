@@ -1,40 +1,15 @@
-flowchart TD
-    subgraph S["1. Public sources"]
-        OSM["OpenStreetMap<br/>poles, towers, lines, substations"]
-        HIFLD["HIFLD<br/>transmission lines, reference layer"]
-        FEMA["FEMA<br/>flood hazard zones"]
-    end
-
-    subgraph F["2. Fetch (Python, requests)"]
-        RAW["raw GeoJSON files<br/>kept out of git"]
-    end
-
-    subgraph L["3. Load (GeoPandas)"]
-        PROJ["reproject to EPSG:2278<br/>NAD83 Texas South Central, US feet"]
-    end
-
-    subgraph DB["4. QA/QC in PostGIS (Docker)"]
-        T["source tables"]
-        LOC["location check<br/>OSM vs HIFLD offset"]
-        CON["connectivity checks<br/>supports not on a line,<br/>lines not connected to the network"]
-        ATT["attribute checks<br/>missing or inconsistent<br/>voltage and operator"]
-        E["errors table"]
-        R["ranked errors<br/>flood zones first"]
-    end
-
-    subgraph O["5. Outputs"]
-        CSV["error report CSV"]
-        MAP["visual QA map in QGIS"]
-        MD["README<br/>real numbers from the run"]
-    end
-
-    OSM --> RAW
-    HIFLD --> RAW
-    FEMA --> RAW
-    RAW --> PROJ --> T
-    T --> LOC --> E
-    T --> CON --> E
-    T --> ATT --> E
-    E --> R
-    R --> CSV --> MD
-    R --> MAP --> MD
+flowchart LR
+    OSM[OpenStreetMap] --> DL[Download]
+    HIFLD[HIFLD lines] --> DL
+    FEMA[FEMA flood zones] --> DL
+    DL --> FT[Convert to feet]
+    FT --> DB[(PostGIS)]
+    DB --> LOC[Location check]
+    DB --> CON[Connectivity check]
+    DB --> ATT[Attribute check]
+    LOC --> ERR[Errors]
+    CON --> ERR
+    ATT --> ERR
+    ERR --> RANK[Rank by flood zone]
+    RANK --> CSV[Error report]
+    RANK --> MAP[QA map]
