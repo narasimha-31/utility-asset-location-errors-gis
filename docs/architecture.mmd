@@ -6,7 +6,7 @@ flowchart TD
     end
 
     subgraph F["2. Fetch (Python, requests)"]
-        RAW["data/raw<br/>GeoJSON files, not in git"]
+        RAW["raw GeoJSON files<br/>kept out of git"]
     end
 
     subgraph L["3. Load (GeoPandas)"]
@@ -21,7 +21,7 @@ flowchart TD
     end
 
     subgraph O["5. Outputs"]
-        CSV["output/error_report.csv"]
+        CSV["ranked error report CSV"]
         QGIS["QGIS project<br/>reads PostGIS directly"]
         PNG["map image"]
         HC["hand check of 30 errors<br/>on aerial imagery"]
