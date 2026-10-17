@@ -10,5 +10,8 @@ output/*.csv
 __pycache__/
 .venv/
 
+.vscode/
+*.log
+
 *.qgz~
 *.qgs~
