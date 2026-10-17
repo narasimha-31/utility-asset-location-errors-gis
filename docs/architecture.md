@@ -3,16 +3,12 @@
 This project checks public Houston power grid maps for location and data errors, then
 ranks them by how much they would slow storm restoration. All data is real and public.
 
-![Architecture](architecture.png)
-
-The diagram source is in [architecture.mmd](architecture.mmd).
-
 ## Steps
 
 1. **Sources.** OpenStreetMap has the poles, towers, lines and substations plus the
    critical sites (hospitals, fire and police stations, water plants). HIFLD is a federal
    map of transmission lines made separately from OSM. FEMA has the flood hazard zones.
-2. **Fetch.** Python downloads each source into data/raw. Nothing is changed here.
+2. **Fetch.** Python downloads each source and saves the raw files. Nothing is changed here.
 3. **Load.** GeoPandas converts every layer to EPSG:2278 so all distances are in US feet,
    then writes the layers to PostGIS.
 4. **Check and rank.** SQL in PostGIS runs five checks and writes every problem to an
