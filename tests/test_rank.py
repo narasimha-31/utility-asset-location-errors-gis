@@ -1,7 +1,7 @@
 import pandas as pd
 
 import report
-from conftest import SCHEMA
+
 
 HIGH = "POLYGON((0 0, 0 1000, 1000 1000, 1000 0, 0 0))"
 MODERATE = "POLYGON((2000 0, 2000 1000, 3000 1000, 3000 0, 2000 0))"
@@ -22,7 +22,7 @@ def setup_zones_and_poles(qa):
 
 def test_errors_are_ranked_by_flood_zone(qa):
     setup_zones_and_poles(qa)
-    rows = qa.query(f"SELECT feature_id, flood_rank, flood_zone FROM {SCHEMA}.ranked_errors "
+    rows = qa.query("SELECT feature_id, flood_rank, flood_zone FROM ranked_errors "
                     "WHERE check_name = 'support_not_on_line' ORDER BY priority")
     assert [(r["feature_id"], r["flood_rank"], r["flood_zone"]) for r in rows] == [
         ("11", 1, "AE"), ("12", 2, "X"), ("13", 3, None)]
@@ -30,7 +30,7 @@ def test_errors_are_ranked_by_flood_zone(qa):
 
 def test_report_writes_csv_and_counts(qa, tmp_path):
     setup_zones_and_poles(qa)
-    summary = report.write_report(qa.engine, out_dir=tmp_path, schema=SCHEMA)
+    summary = report.write_report(qa.engine, out_dir=tmp_path)
     csv = pd.read_csv(tmp_path / "error_report.csv")
     assert len(csv) == summary["total"]
     assert summary["by_check"]["support_not_on_line"] == 3

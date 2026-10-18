@@ -8,8 +8,8 @@ OUTPUT = Path("output")
 FLOOD_LABELS = {1: "high risk flood zone", 2: "0.2 percent annual chance zone", 3: "outside flood zones"}
 
 
-def write_report(engine, out_dir=OUTPUT, schema="public"):
-    errors = gpd.read_postgis(f"SELECT * FROM {schema}.ranked_errors ORDER BY priority",
+def write_report(engine, out_dir=OUTPUT):
+    errors = gpd.read_postgis("SELECT * FROM ranked_errors ORDER BY priority",
                               engine, geom_col="geom")
     lonlat = errors.geometry.to_crs(4326)
     errors["lon"] = lonlat.x.round(6)

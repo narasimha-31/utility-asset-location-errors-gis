@@ -3,11 +3,10 @@ from pathlib import Path
 from db import get_engine
 
 
-def run_sql(engine, path, schema="public"):
+def run_sql(engine, path):
     sql = Path(path).read_text()
     with engine.begin() as conn:
         cur = conn.connection.cursor()
-        cur.execute(f"SET search_path TO {schema}, public")
         # multi-statement file, no params
         cur.execute(sql)
 

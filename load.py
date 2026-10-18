@@ -61,18 +61,18 @@ def prep_flood(raw):
     return flood[["fld_zone", "zone_subty", "sfha_tf", "geometry"]].copy()
 
 
-def write(gdf, table, engine, schema):
+def write(gdf, table, engine):
     gdf = to_feet(gdf).rename_geometry("geom")
-    gdf.to_postgis(table, engine, schema=schema, if_exists="replace", index=False,
+    gdf.to_postgis(table, engine, if_exists="replace", index=False,
                    dtype={"geom": Geometry("GEOMETRY", srid=FEET)})
     with engine.begin() as conn:
         conn.execute(text(
-            f"CREATE INDEX IF NOT EXISTS {table}_geom_idx ON {schema}.{table} USING gist (geom)"
+            f"CREATE INDEX IF NOT EXISTS {table}_geom_idx ON {table} USING gist (geom)"
         ))
     return len(gdf)
 
 
-def load_all(engine, raw_dir=RAW, schema="public"):
+def load_all(engine, raw_dir=RAW):
     raw_dir = Path(raw_dir)
     tables = split_osm(gpd.read_file(raw_dir / "osm_power.geojson"))
     # hifld lines run past the box
@@ -80,7 +80,7 @@ def load_all(engine, raw_dir=RAW, schema="public"):
     tables["hifld_lines"] = clip_to_study_area(hifld)
     tables["flood_zones"] = prep_flood(gpd.read_file(raw_dir / "flood_zones.geojson"))
     tables["study_area"] = study_area()
-    return {name: write(gdf, name, engine, schema) for name, gdf in tables.items()}
+    return {name: write(gdf, name, engine) for name, gdf in tables.items()}
 
 
 if __name__ == "__main__":

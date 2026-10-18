@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 
 
-def get_engine():
+def get_engine(database=None):
     load_dotenv()
     url = URL.create(
         "postgresql+psycopg",
@@ -13,6 +13,6 @@ def get_engine():
         password=os.environ["PGPASSWORD"],
         host=os.environ["PGHOST"],
         port=int(os.environ["PGPORT"]),
-        database=os.environ["PGDATABASE"],
+        database=database or os.environ["PGDATABASE"],
     )
     return create_engine(url)

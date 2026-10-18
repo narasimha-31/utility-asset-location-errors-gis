@@ -1,10 +1,8 @@
 import geopandas as gpd
 import pytest
 from shapely.geometry import LineString, Point, Polygon
-from sqlalchemy import text
 
 import load
-from db import get_engine
 
 
 def test_to_feet_gives_us_feet():
@@ -56,7 +54,7 @@ def test_clip_cuts_lines_at_the_study_area_edge():
     assert clipped.geometry.iloc[0].bounds[2] == pytest.approx(-95.25)
 
 
-def test_load_all_writes_tables_in_feet(tmp_path):
+def test_load_all_writes_tables_in_feet(tmp_path, test_engine):
     osm_sample().to_file(tmp_path / "osm_power.geojson", driver="GeoJSON")
     gpd.GeoDataFrame(
         {"ID": ["1"], "OWNER": ["A"], "VOLTAGE": [138], "SOURCE": ["IMAGERY"]},
@@ -67,16 +65,10 @@ def test_load_all_writes_tables_in_feet(tmp_path):
         geometry=[Polygon([(-95.5, 29.6), (-95.5, 29.8), (-95.3, 29.8), (-95.5, 29.6)])], crs=4326,
     ).to_file(tmp_path / "flood_zones.geojson", driver="GeoJSON")
 
-    engine = get_engine()
-    with engine.begin() as conn:
-        conn.execute(text("DROP SCHEMA IF EXISTS load_test CASCADE"))
-        conn.execute(text("CREATE SCHEMA load_test"))
-
-    counts = load.load_all(engine, raw_dir=tmp_path, schema="load_test")
+    counts = load.load_all(test_engine, raw_dir=tmp_path)
     assert counts == {"osm_supports": 2, "osm_lines": 2, "osm_substations": 1,
                       "hifld_lines": 1, "flood_zones": 1, "study_area": 1}
 
-    with engine.begin() as conn:
-        srid = conn.execute(text("SELECT Find_SRID('load_test', 'osm_lines', 'geom')")).scalar()
-        conn.execute(text("DROP SCHEMA load_test CASCADE"))
+    with test_engine.connect() as conn:
+        srid = conn.exec_driver_sql("SELECT Find_SRID('public', 'osm_lines', 'geom')").scalar()
     assert srid == 2278
