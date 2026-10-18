@@ -14,6 +14,7 @@ def run_sql(engine, path, schema="public"):
 
 def main():
     import load
+    import report
 
     engine = get_engine()
     print("loading tables")
@@ -21,6 +22,10 @@ def main():
         print(f"  {table}: {count}")
     print("running checks")
     run_sql(engine, "checks.sql")
+    print("ranking by flood zone")
+    run_sql(engine, "rank.sql")
+    print("writing report\n")
+    report.print_summary(report.write_report(engine))
 
 
 if __name__ == "__main__":
