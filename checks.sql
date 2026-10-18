@@ -1,7 +1,8 @@
 -- tolerances in US feet
 SET LOCAL qa.location_ft = '100';
 SET LOCAL qa.not_found_ft = '1000';
-SET LOCAL qa.sample_step_ft = '100';
+-- sampling every n ft can miss n/2 ft
+SET LOCAL qa.sample_step_ft = '5';
 SET LOCAL qa.support_ft = '5';
 SET LOCAL qa.touch_ft = '1';
 SET LOCAL qa.substation_ft = '50';

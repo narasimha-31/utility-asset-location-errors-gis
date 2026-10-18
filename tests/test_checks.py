@@ -53,6 +53,17 @@ def test_distribution_lines_are_not_used_for_location_check(qa):
     assert len(qa.errors("osm_hifld_disagreement")) == 1
 
 
+def test_disagreement_that_falls_between_sample_points_is_found(qa):
+    # 105 ft gap between 100 ft samples
+    for i, x in enumerate(range(0, 1300, 210)):
+        add_osm_line(qa, i + 1, f"LINESTRING({x} -10, {x} 10)")
+    add_hifld(qa, "h1", "LINESTRING(0 0, 1000 0)")
+    qa.run(CHECKS)
+    found = qa.errors("osm_hifld_disagreement")
+    assert len(found) == 1
+    assert float(found[0]["size_ft"]) == pytest.approx(105, abs=3)
+
+
 def add_support(qa, osm_id, wkt, power="pole"):
     qa.add("osm_supports", wkt, osm_id=osm_id, power=power, operator=None)
 
