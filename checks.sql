@@ -2,6 +2,9 @@
 SET LOCAL qa.location_ft = '100';
 SET LOCAL qa.not_found_ft = '1000';
 SET LOCAL qa.sample_step_ft = '100';
+SET LOCAL qa.support_ft = '5';
+SET LOCAL qa.touch_ft = '1';
+SET LOCAL qa.substation_ft = '50';
 
 DROP TABLE IF EXISTS errors;
 CREATE TABLE errors (
@@ -51,3 +54,56 @@ SELECT
     geom
 FROM worst
 WHERE dist > current_setting('qa.location_ft')::numeric;
+
+
+-- supports not on a line
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT
+    'support_not_on_line',
+    s.power,
+    s.osm_id::text,
+    CASE
+        WHEN near.dist IS NULL THEN 'no line anywhere in the data'
+        ELSE 'nearest line is ' || round(near.dist::numeric) || ' ft away'
+    END,
+    round(near.dist::numeric, 1),
+    s.geom
+FROM osm_supports s
+LEFT JOIN LATERAL (
+    SELECT ST_Distance(s.geom, l.geom) AS dist
+    FROM osm_lines l
+    ORDER BY s.geom <-> l.geom
+    LIMIT 1
+) near ON true
+WHERE near.dist IS NULL OR near.dist > current_setting('qa.support_ft')::numeric;
+
+
+-- line groups with no substation, skip groups leaving the study area
+WITH groups AS (
+    SELECT osm_id, power, geom,
+           ST_ClusterDBSCAN(geom, eps := current_setting('qa.touch_ft')::numeric, minpoints := 1) OVER () AS grp
+    FROM osm_lines
+),
+reach AS (
+    SELECT
+        g.grp,
+        count(*) AS lines,
+        bool_or(EXISTS (
+            SELECT 1 FROM osm_substations s
+            WHERE ST_DWithin(g.geom, s.geom, current_setting('qa.substation_ft')::numeric)
+        )) AS at_substation,
+        bool_or(NOT ST_Within(g.geom, (SELECT geom FROM study_area LIMIT 1))) AS leaves_area
+    FROM groups g
+    GROUP BY g.grp
+)
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT
+    'possible_mapping_gap',
+    g.power,
+    g.osm_id::text,
+    'part of a group of ' || r.lines || ' touching line(s) that never reaches a substation',
+    round(ST_Length(g.geom)::numeric, 1),
+    ST_LineInterpolatePoint(g.geom, 0.5)
+FROM groups g
+JOIN reach r USING (grp)
+WHERE NOT r.at_substation AND NOT r.leaves_area;

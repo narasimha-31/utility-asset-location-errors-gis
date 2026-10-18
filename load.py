@@ -17,9 +17,13 @@ def to_feet(gdf):
     return gdf.to_crs(FEET)
 
 
-def clip_to_study_area(gdf):
+def study_area():
     s, w, n, e = BBOX
-    return gdf.clip(box(w, s, e, n))
+    return gpd.GeoDataFrame(geometry=[box(w, s, e, n)], crs=4326)
+
+
+def clip_to_study_area(gdf):
+    return gdf.clip(study_area().geometry.iloc[0])
 
 
 def _keep(gdf, columns):
@@ -75,6 +79,7 @@ def load_all(engine, raw_dir=RAW, schema="public"):
     hifld = prep_hifld(gpd.read_file(raw_dir / "hifld_lines.geojson"))
     tables["hifld_lines"] = clip_to_study_area(hifld)
     tables["flood_zones"] = prep_flood(gpd.read_file(raw_dir / "flood_zones.geojson"))
+    tables["study_area"] = study_area()
     return {name: write(gdf, name, engine, schema) for name, gdf in tables.items()}
 
 

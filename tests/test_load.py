@@ -74,7 +74,7 @@ def test_load_all_writes_tables_in_feet(tmp_path):
 
     counts = load.load_all(engine, raw_dir=tmp_path, schema="load_test")
     assert counts == {"osm_supports": 2, "osm_lines": 2, "osm_substations": 1,
-                      "hifld_lines": 1, "flood_zones": 1}
+                      "hifld_lines": 1, "flood_zones": 1, "study_area": 1}
 
     with engine.begin() as conn:
         srid = conn.execute(text("SELECT Find_SRID('load_test', 'osm_lines', 'geom')")).scalar()
