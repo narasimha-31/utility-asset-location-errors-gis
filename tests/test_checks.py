@@ -98,3 +98,55 @@ def test_lines_leaving_the_study_area_are_not_flagged(qa):
     add_osm_line(qa, 1, "LINESTRING(99000 0, 101000 0)")
     qa.run(CHECKS)
     assert qa.errors("possible_mapping_gap") == []
+
+
+def ids(found):
+    return [f["feature_id"] for f in found]
+
+
+def test_missing_voltage_and_operator_are_flagged(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", voltage=None, operator="")
+    add_osm_line(qa, 2, "LINESTRING(0 500, 1000 500)")
+    qa.run(CHECKS)
+    assert ids(qa.errors("missing_voltage")) == ["1"]
+    assert ids(qa.errors("missing_operator")) == ["1"]
+
+
+def test_voltage_that_is_not_plain_numbers_is_flagged(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", voltage="138 kV")
+    add_osm_line(qa, 2, "LINESTRING(0 500, 1000 500)", voltage="138000;69000")
+    qa.run(CHECKS)
+    assert ids(qa.errors("bad_voltage")) == ["1"]
+
+
+def test_operator_spelled_two_ways_is_flagged(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", operator="Example Utility")
+    add_osm_line(qa, 2, "LINESTRING(0 500, 1000 500)", operator="example utility")
+    add_osm_line(qa, 3, "LINESTRING(0 900, 1000 900)", operator="Other Co")
+    qa.run(CHECKS)
+    found = qa.errors("inconsistent_operator")
+    assert ids(found) == ["1", "2"]
+    assert "Example Utility" in found[0]["detail"] and "example utility" in found[0]["detail"]
+
+
+def test_voltage_that_differs_from_hifld_on_the_same_route_is_flagged(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", voltage="138000")
+    add_hifld(qa, "h1", "LINESTRING(0 30, 1000 30)", voltage=69)
+    qa.run(CHECKS)
+    found = qa.errors("voltage_disagreement")
+    assert ids(found) == ["1"]
+    assert "69" in found[0]["detail"]
+
+
+def test_voltage_matching_hifld_is_fine(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", voltage="138000;69000")
+    add_hifld(qa, "h1", "LINESTRING(0 30, 1000 30)", voltage=69)
+    qa.run(CHECKS)
+    assert qa.errors("voltage_disagreement") == []
+
+
+def test_voltage_is_not_compared_with_hifld_lines_copied_from_osm(qa):
+    add_osm_line(qa, 1, "LINESTRING(0 0, 1000 0)", voltage="138000")
+    add_hifld(qa, "h1", "LINESTRING(0 30, 1000 30)", voltage=69, from_osm=True)
+    qa.run(CHECKS)
+    assert qa.errors("voltage_disagreement") == []

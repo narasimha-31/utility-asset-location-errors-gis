@@ -107,3 +107,71 @@ SELECT
 FROM groups g
 JOIN reach r USING (grp)
 WHERE NOT r.at_substation AND NOT r.leaves_area;
+
+
+-- missing voltage and operator
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT 'missing_voltage', power, osm_id::text, 'voltage is empty', NULL, ST_LineInterpolatePoint(geom, 0.5)
+FROM osm_lines
+WHERE coalesce(trim(voltage), '') = '';
+
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT 'missing_operator', power, osm_id::text, 'operator is empty', NULL, ST_LineInterpolatePoint(geom, 0.5)
+FROM osm_lines
+WHERE coalesce(trim(operator), '') = '';
+
+
+-- volts, circuits split by ;
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT 'bad_voltage', power, osm_id::text, 'voltage "' || voltage || '" is not plain numbers', NULL,
+       ST_LineInterpolatePoint(geom, 0.5)
+FROM osm_lines
+WHERE coalesce(trim(voltage), '') <> ''
+  AND voltage !~ '^[0-9]+(;[0-9]+)*$';
+
+
+-- operator spelling variants
+WITH spelled AS (
+    SELECT osm_id, power, operator, geom,
+           lower(regexp_replace(operator, '[^A-Za-z0-9]', '', 'g')) AS operator_key
+    FROM osm_lines
+    WHERE coalesce(trim(operator), '') <> ''
+),
+variants AS (
+    SELECT operator_key, string_agg(DISTINCT operator, ' | ' ORDER BY operator) AS spellings
+    FROM spelled
+    GROUP BY operator_key
+    HAVING count(DISTINCT operator) > 1
+)
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT 'inconsistent_operator', s.power, s.osm_id::text, 'operator spelled more than one way: ' || v.spellings,
+       NULL, ST_LineInterpolatePoint(s.geom, 0.5)
+FROM spelled s
+JOIN variants v USING (operator_key);
+
+
+-- osm voltage vs hifld voltage (kV) on the same route
+WITH osm AS (
+    SELECT osm_id, power, voltage, geom, ST_LineInterpolatePoint(geom, 0.5) AS mid
+    FROM osm_lines
+    WHERE power = 'line' AND voltage ~ '^[0-9]+(;[0-9]+)*$'
+),
+matched AS (
+    SELECT o.*, h.id AS hifld_id, h.voltage AS hifld_kv
+    FROM osm o
+    JOIN LATERAL (
+        SELECT id, voltage
+        FROM hifld_lines
+        WHERE NOT from_osm
+          AND voltage > 0
+          AND ST_DWithin(o.mid, geom, current_setting('qa.location_ft')::numeric)
+        ORDER BY o.mid <-> geom
+        LIMIT 1
+    ) h ON true
+)
+INSERT INTO errors (check_name, feature_type, feature_id, detail, size_ft, geom)
+SELECT 'voltage_disagreement', power, osm_id::text,
+       'OSM says ' || voltage || ' V, HIFLD line ' || hifld_id || ' says ' || hifld_kv || ' kV',
+       NULL, mid
+FROM matched
+WHERE NOT (hifld_kv * 1000 = ANY (string_to_array(voltage, ';')::numeric[]));
