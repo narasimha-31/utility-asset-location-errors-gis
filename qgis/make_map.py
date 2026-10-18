@@ -1,19 +1,24 @@
 """Build the QA map project and PNG. Run with the QGIS python:
     "C:\\Program Files\\QGIS 3.44.15\\bin\\python-qgis-ltr.bat" qgis\\make_map.py
 """
+import os
 import re
 import sys
 import zipfile
 from pathlib import Path
 
+# stable xml attribute order
+os.environ["QT_HASH_SEED"] = "0"
+
 from qgis.core import (
     Qgis, QgsApplication, QgsCategorizedSymbolRenderer, QgsCoordinateReferenceSystem,
-    QgsDataSourceUri, QgsHueSaturationFilter, QgsLayoutExporter, QgsLayoutItemLabel, QgsLayoutItemLegend,
+    QgsDataSourceUri, QgsFillSymbol, QgsHueSaturationFilter, QgsLineSymbol, QgsMarkerSymbol, QgsLayoutExporter, QgsLayoutItemLabel, QgsLayoutItemLegend,
     QgsLayoutItemMap, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLayoutSize,
     QgsPalLayerSettings, QgsPrintLayout, QgsProject, QgsProperty, QgsRasterLayer,
     QgsRendererCategory, QgsRuleBasedRenderer, QgsSymbol, QgsSymbolLayer,
     QgsTextFormat, QgsUnitTypes, QgsVectorLayer, QgsVectorLayerSimpleLabeling,
 )
+from qgis.PyQt.QtCore import QSize
 from qgis.PyQt.QtGui import QColor, QFont
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +52,17 @@ def pg_layer(env, table, name):
     layer = QgsVectorLayer(uri.uri(False), name, "postgres")
     if not layer.isValid():
         sys.exit(f"could not open table {table}, is the database running?")
+    fixed_profile_colors(layer)
     return layer
+
+
+def fixed_profile_colors(layer):
+    # profile symbols default to random colors
+    profile = layer.elevationProperties()
+    profile.setProfileLineSymbol(QgsLineSymbol.createSimple({"line_color": "128,128,128"}))
+    profile.setProfileFillSymbol(QgsFillSymbol.createSimple({"color": "128,128,128"}))
+    if hasattr(profile, "setProfileMarkerSymbol"):
+        profile.setProfileMarkerSymbol(QgsMarkerSymbol.createSimple({"color": "128,128,128"}))
 
 
 def style_flood(layer):
@@ -101,11 +116,13 @@ def style_findings(layer):
 
 def build_project(project, env):
     project.setCrs(QgsCoordinateReferenceSystem("EPSG:2278"))
+    project.styleSettings().setRandomizeDefaultSymbolColor(False)
     basemap = QgsRasterLayer(
         "type=xyz&url=https://tile.openstreetmap.org/{z}/{x}/{y}.png&zmax=19&zmin=0",
         "basemap", "wms")
     basemap.hueSaturationFilter().setGrayscaleMode(QgsHueSaturationFilter.GrayscaleLightness)
     basemap.setOpacity(0.45)
+    fixed_profile_colors(basemap)
     flood = pg_layer(env, "flood_zones", "FEMA flood zones")
     hifld = pg_layer(env, "hifld_lines", "HIFLD transmission lines")
     osm = pg_layer(env, "osm_lines", "OSM power lines")
@@ -175,27 +192,45 @@ def export_png(project, extent):
     note.attemptResize(QgsLayoutSize(76, 40, mm))
     layout.addLayoutItem(note)
 
-    settings = QgsLayoutExporter.ImageExportSettings()
-    settings.dpi = 150
-    settings.appendGeoreference = False
-    settings.exportMetadata = False
-    result = QgsLayoutExporter(layout).exportToImage(str(IMAGE_FILE), settings)
-    if result != QgsLayoutExporter.Success:
-        sys.exit(f"map export failed with code {result}")
+    # exportToImage gives a gdal error on png
+    image = QgsLayoutExporter(layout).renderPageToImage(0, QSize(), 150)
+    if image.isNull() or not image.save(str(IMAGE_FILE), "PNG"):
+        sys.exit("map export failed")
 
 
-def strip_password(qgz_path, password):
-    # strip password from saved project
+def clean_project_file(qgz_path, password, private_words):
     with zipfile.ZipFile(qgz_path) as z:
-        files = {name: z.read(name) for name in z.namelist()}
-    with zipfile.ZipFile(qgz_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, data in files.items():
-            if name.endswith(".qgs"):
-                data = re.sub(rb" password='[^']*'", b"", data)
-            z.writestr(name, data)
-    with zipfile.ZipFile(qgz_path) as z:
-        if any(password.encode() in z.read(n) for n in z.namelist()):
-            sys.exit("password is still in the project file, not saving it")
+        qgs_name = next(n for n in z.namelist() if n.endswith(".qgs"))
+        qgs = z.read(qgs_name)
+
+    qgs = re.sub(rb" password='[^']*'", b"", qgs)
+    qgs = re.sub(rb' (saveUser|saveUserFull|saveDateTime)="[^"]*"', b"", qgs)
+    qgs = re.sub(rb"<author>[^<]*</author>", b"<author></author>", qgs)
+    qgs = re.sub(rb"<creation>[^<]*</creation>", b"<creation></creation>", qgs)
+    qgs = re.sub(rb'\s*<date type="Created" value="[^"]*"/>', b"", qgs)
+    # zero the uuid part of layer ids
+    qgs = re.sub(rb"_[0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12}",
+                 b"_00000000_0000_0000_0000_000000000000", qgs)
+    qgs = re.sub(rb'projectStyleId="[^"]*"', b'projectStyleId=""', qgs)
+    # stable symbol ids
+    numbered = {}
+    qgs = re.sub(
+        rb"\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}",
+        lambda m: numbered.setdefault(m.group(0), b"{00000000-0000-0000-0000-%012d}" % len(numbered)),
+        qgs)
+    # snapping settings are unordered
+    qgs = re.sub(rb"((?:[ \t]*<layer-setting [^>]*/>\r?\n)+)",
+                 lambda m: b"".join(sorted(m.group(1).splitlines(keepends=True))), qgs)
+
+    for word in [password, *private_words]:
+        if word and word.encode() in qgs:
+            sys.exit("private text is still in the project file, not saving it")
+
+    # drop the empty style db
+    info = zipfile.ZipInfo(qgs_name, date_time=(2026, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    with zipfile.ZipFile(qgz_path, "w") as z:
+        z.writestr(info, qgs)
 
 
 def main():
@@ -209,8 +244,9 @@ def main():
     print(f"saved {IMAGE_FILE}")
 
     project.write(str(PROJECT_FILE))
-    strip_password(PROJECT_FILE, env["PGPASSWORD"])
-    print(f"saved {PROJECT_FILE} without the database password")
+    private = [os.environ.get("USERNAME", ""), QgsApplication.userFullName()]
+    clean_project_file(PROJECT_FILE, env["PGPASSWORD"], private)
+    print(f"saved {PROJECT_FILE} without the password or user name")
     app.exitQgis()
 
 
