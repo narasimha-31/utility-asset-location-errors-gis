@@ -22,7 +22,7 @@ the problems most likely to slow storm restoration come first.
 
 These are leads for field or engineering review, not confirmed errors.
 
-## How it works
+## Architecture
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="documentation/architecture-dark.png">
