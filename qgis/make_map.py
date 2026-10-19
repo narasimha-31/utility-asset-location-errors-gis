@@ -193,7 +193,7 @@ def export_png(project, extent):
     layout.addLayoutItem(note)
 
     # exportToImage gives a gdal error on png
-    image = QgsLayoutExporter(layout).renderPageToImage(0, QSize(), 150)
+    image = QgsLayoutExporter(layout).renderPageToImage(0, QSize(), 250)
     if image.isNull() or not image.save(str(IMAGE_FILE), "PNG"):
         sys.exit("map export failed")
 
