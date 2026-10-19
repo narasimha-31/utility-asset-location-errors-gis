@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 import report
@@ -52,3 +54,16 @@ def test_inside_a_flood_rank_checks_are_grouped_before_sizes_are_compared(qa):
     rows = qa.query("SELECT check_name FROM ranked_errors ORDER BY priority")
     order = [r["check_name"] for r in rows]
     assert order.index("osm_hifld_disagreement") < order.index("possible_mapping_gap")
+
+
+def test_report_writes_findings_geojson_in_lon_lat(qa, tmp_path):
+    setup_zones_and_poles(qa)
+    summary = report.write_report(qa.engine, out_dir=tmp_path)
+    data = json.loads((tmp_path / "findings.geojson").read_text())
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) == summary["total"]
+    first = data["features"][0]
+    lon, lat = first["geometry"]["coordinates"]
+    assert -180 <= lon <= 180 and -90 <= lat <= 90
+    assert first["properties"]["priority"] == 1
+    assert {"check", "feature", "detail", "flood_zone", "marker-color"} <= set(first["properties"])
