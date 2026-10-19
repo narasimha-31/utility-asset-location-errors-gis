@@ -2,14 +2,16 @@ flowchart LR
     OSM[OpenStreetMap] --> DL[Download]
     HIFLD[HIFLD lines] --> DL
     FEMA[FEMA flood zones] --> DL
-    DL --> FT[Convert to feet]
+    DL --> FT[Convert to US feet]
     FT --> DB[(PostGIS)]
-    DB --> LOC[Location check]
-    DB --> CON[Connectivity check]
-    DB --> ATT[Attribute check]
-    LOC --> ERR[Errors]
-    CON --> ERR
-    ATT --> ERR
-    ERR --> RANK[Rank by flood zone]
-    RANK --> CSV[Error report]
+    DB --> LOC[Conflation check]
+    DB --> CON[Network connectivity]
+    DB --> ATT[Attribute checks]
+    LOC --> F[Findings]
+    CON --> F
+    ATT --> F
+    F --> RANK[Rank by flood risk]
+    RANK --> CSV[Findings report]
     RANK --> MAP[QA map]
+    DL --> VER[Independent recount]
+    VER -. same features .-> F
