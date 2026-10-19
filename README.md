@@ -4,6 +4,9 @@ Location errors are found by flagging where two independent sources disagree.
 
 ![QA map of central Houston findings ranked by flood risk](documentation/qa_map.png)
 
+[Open the interactive map of all 474 findings](output/findings.geojson). Zoom in and click
+any point for its check, detail and flood zone.
+
 Automated QA/QC of public power grid GIS data for central Houston, ranked by flood risk so
 the problems most likely to slow storm restoration come first.
 
@@ -20,9 +23,21 @@ the problems most likely to slow storm restoration come first.
 
 These are leads for field or engineering review, not confirmed errors.
 
+## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="documentation/architecture-dark.png">
+  <img alt="How the QA pipeline works" src="documentation/architecture.png">
+</picture>
+
+Public data is downloaded, converted to US feet and loaded into PostGIS. Three groups of
+checks write their findings to one table, which is ranked by flood risk and turned into a
+report and the QA map. A separate script recounts every check from the raw files and
+confirms the same features are flagged.
+
 ## How the results were checked
 
-- 34 unit tests run each check on small shapes with a known answer, in a separate test
+- 35 unit tests run each check on small shapes with a known answer, in a separate test
   database.
 - A second script recomputes every check from the raw files with GeoPandas instead of SQL.
   All eight checks flag the same features. It also caught a bug: sampling HIFLD every
