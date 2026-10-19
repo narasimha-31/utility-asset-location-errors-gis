@@ -4,8 +4,7 @@ Location errors are found by flagging where two independent sources disagree.
 
 ![QA map of central Houston findings ranked by flood risk](documentation/qa_map.png)
 
-[Open the interactive map of all 474 findings](output/findings.geojson). Zoom in and click
-any point for its check, detail and flood zone.
+[Browse all 474 findings on a map (zoom in to click individual points).](output/findings.geojson)
 
 Automated QA/QC of public power grid GIS data for central Houston, ranked by flood risk so
 the problems most likely to slow storm restoration come first.
